@@ -19,7 +19,7 @@ library(lme4)
 library(sandwich)
 library(lmtest)
 
-setwd("C:/Users/Dean/Google Drive/Thesis/Thesis_Data_Analysis")
+setwd("C:/Users/Dean/Google Drive/Thesis/Thesis UI and Data/Thesis_Data_Analysis")
 
 data <- read.csv('Exp_Data.csv',header=TRUE)
 survey <- read.csv('Exp_Survey.csv',header=TRUE)
@@ -50,7 +50,7 @@ hist.data <- wide.data %>% select(Type,Final.Choice) %>% mutate(Final.Choice = F
 
 hist.data$Type <- factor(hist.data$Type, levels = c("Monthly", "Yearly", "Inflated Monthly"))
 
-ggplot(hist.data, aes(Final.Choice)) + geom_histogram(binwidth=10, fill="black") + 
+ggplot(hist.data, aes(Final.Choice)) + geom_histogram(binwidth=10, fill="black",color="gray") + 
   facet_wrap(~ Type) +
   scale_x_continuous(breaks=seq(0,100,10)) +
   xlab("Final Allocation to Bond Fund (%)") + 
