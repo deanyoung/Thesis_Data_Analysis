@@ -1,0 +1,329 @@
+---
+title: "Myopic Loss Aversion in Investment Behavior - Analysis"
+author: "Dean K. Young"
+date: "January 21, 2016"
+output: html_document
+---
+Please refer to thesis document for commentary.
+
+```{r, echo=FALSE, include=FALSE}
+### Initial setup
+library(dplyr)
+library(magrittr)
+library(tidyr)
+library(ggplot2)
+library(Hmisc)
+library(nortest)
+library(plm)
+library(lme4)
+library(sandwich)
+library(lmtest)
+
+setwd("C:/Users/Dean/Google Drive/Thesis/Thesis_Data_Analysis")
+
+data <- read.csv('Exp_Data.csv',header=TRUE)
+survey <- read.csv('Exp_Survey.csv',header=TRUE)
+
+survey %<>% mutate(Q3 = ifelse(Q3 == 'Yes',1,ifelse(Q3 == 'No',0,.5))) %>% 
+  mutate(Q4 = ifelse(Q4 == 'Yes',1,ifelse(Q4 == 'No',0,.5))) %>%
+  mutate(Q5 = ifelse(Q5 == 'Yes',1,ifelse(Q5 == 'No',0,.5)))
+
+survey %<>% select(ID,Q3,Q4,Q5,Q6,Q7)
+data %<>% select(-Name,-Student.ID)
+
+wide.data <- inner_join(survey,data,by="ID")
+long.data.40 <- wide.data %>% select(ID,Type,num_range("X",161:200)) %>% gather("Choice_Num","Choice",3:42)
+
+remove(data,survey)
+
+```
+
+Type: 1 = Monthly, 2 = Yearly, 3 = Inflated Monthly  
+Choices are for Bond allocation (note that the simulator produces choices as for Stock allocation)
+
+### Figure 1
+Distribution of final allocation choices for each condition
+
+```{r, echo=FALSE}
+hist.data <- wide.data %>% select(Type,Final.Choice) %>% mutate(Final.Choice = Final.Choice * 100) %>%
+  mutate(Type = ifelse(Type == 1, "Monthly", ifelse(Type == 2, "Yearly","Inflated Monthly")))
+
+hist.data$Type <- factor(hist.data$Type, levels = c("Monthly", "Yearly", "Inflated Monthly"))
+
+ggplot(hist.data, aes(Final.Choice)) + geom_histogram(binwidth=10, fill="black") + 
+  facet_wrap(~ Type) +
+  scale_x_continuous(breaks=seq(0,100,10)) +
+  xlab("Final Allocation to Bond Fund (%)") + 
+  ylab("Number of Subjects") 
+```
+
+### No figure/table
+Kolmogorov-Smirnov (KS) tests
+
+```{r, echo=FALSE}
+monthly <- wide.data %>% filter(Type==1) %>% mutate(Final.Choice=Final.Choice*100)
+yearly <- wide.data %>% filter(Type==2) %>% mutate(Final.Choice=Final.Choice*100)
+infmonthly <- wide.data %>% filter(Type==3) %>% mutate(Final.Choice=Final.Choice*100)
+
+lillie.test(monthly$Final.Choice)
+lillie.test(yearly$Final.Choice)
+lillie.test(infmonthly$Final.Choice)
+```
+
+### Table 1
+Percent of portfolio allocated to the Bond Fund for final choice
+
+```{r, echo=FALSE}
+ste <- function(x) sqrt(var(x,na.rm=TRUE)/sum(!is.na(x))) #standard error computation
+
+summ.final <- wide.data %>% group_by(Type) %>% 
+  summarise(Avg = mean(Final.Choice), sd = sd(Final.Choice), ste = ste(Final.Choice))
+
+t.test1 <- wide.data %>% filter(Type == 1 | Type == 2)
+t.test2 <- wide.data %>% filter(Type == 1 | Type == 3)
+t.test3 <- wide.data %>% filter(Type == 2 | Type == 3)
+
+t.test(Final.Choice~Type,t.test1)
+t.test(Final.Choice~Type,t.test2)
+t.test(Final.Choice~Type,t.test3)
+```
+
+### Table 2
+Percent of portfolio allocated to the Bond Fund for final 40 periods
+
+```{r, echo=FALSE}
+summ.40 <- long.data.40 %>% group_by(Type) %>% 
+  summarise(Avg = mean(Choice,na.rm=TRUE), sd = sd(Choice,na.rm=TRUE), ste = ste(Choice))
+
+t.2.test1 <- long.data.40 %>% filter(Type == 1 | Type == 2)
+t.2.test2 <- long.data.40 %>% filter(Type == 1 | Type == 3)
+t.2.test3 <- long.data.40 %>% filter(Type == 2 | Type == 3)
+
+t.test.cluster(t.2.test1$Choice,t.2.test1$ID,t.2.test1$Type)
+t.test.cluster(t.2.test2$Choice,t.2.test2$ID,t.2.test2$Type)
+t.test.cluster(t.2.test3$Choice,t.2.test3$ID,t.2.test3$Type)
+```
+
+### No figure/table
+Controlling for survey results
+
+```{r, echo=FALSE}
+ctrl.t.test1 <- t.test1 %>% mutate(type.dummy = ifelse(Type==1,0,1), Final.Choice = Final.Choice*100)
+ctrl.t.test2 <- t.test2 %>% mutate(type.dummy = ifelse(Type==1,0,1), Final.Choice = Final.Choice*100)
+ctrl.t.test3 <- t.test3 %>% mutate(type.dummy = ifelse(Type==2,0,1), Final.Choice = Final.Choice*100)
+
+# Using HC-robust standard errors
+coeftest(lm(Final.Choice~type.dummy+Q3+Q4+Q5,ctrl.t.test1), vcov=vcovHC)
+coeftest(lm(Final.Choice~type.dummy+Q3+Q4+Q5,ctrl.t.test2), vcov=vcovHC)
+coeftest(lm(Final.Choice~type.dummy+Q3+Q4+Q5,ctrl.t.test3), vcov=vcovHC)
+```
+
+### Figure 2A-B
+Bootstrapped differences in average allocation to the Bond Fund for the monthly and yearly conditions (monthly and inflated-monthly - B)
+
+```{r, echo=FALSE}
+bootstrap <- function(a,b){
+  set.seed(76)
+  boot.samples <- c(rep(NA,100000))
+  for (i in 1:100000){
+    t.1 <- sample(length(a), length(a), replace=TRUE)
+    t.2 <- sample(length(b), length(b), replace=TRUE)
+    t <- mean(a[t.1])-mean(b[t.2])
+    boot.samples[i] <- t
+    
+  }
+  return(as.data.frame(boot.samples) %>% rename(x=boot.samples))
+}
+
+boot.samples.1 <- bootstrap(monthly$Final.Choice,yearly$Final.Choice)
+boot.samples.2 <- bootstrap(monthly$Final.Choice,infmonthly$Final.Choice)
+
+CI.1 <- quantile(boot.samples.1$x,c(.005,.995))
+CI.2 <- quantile(boot.samples.2$x,c(.005,.995))
+
+boot.samples.1 %<>% mutate(CI = x < CI.1[1] | x > CI.1[2])
+boot.samples.2 %<>% mutate(CI = x < CI.2[1] | x > CI.2[2])
+
+ggplot(aes(x, fill=CI), data=boot.samples.1) + geom_histogram(color="gray") + 
+  geom_vline(xintercept=CI.1, linetype="dotted", color="red", size= 1) +
+  geom_text(label=paste("99% CI: [",round(CI.1[1],2),",",round(CI.1[2],2),"]"), aes(x=mean(boot.samples.1$x),y=12000), size=6) +
+  scale_fill_manual(values = c("black", "red")) +
+  guides(fill=FALSE) +
+  coord_cartesian(xlim=c(-30,70), ylim=c(0,12000)) +
+  xlab("Difference in Average Allocation (%)") +
+  ylab("Count")
+
+ggplot(aes(x, fill=CI), data=boot.samples.2) + geom_histogram(color="gray") + 
+  geom_vline(xintercept=CI.2, linetype="dotted", color="red", size= 1) +
+  geom_text(label=paste("99% CI: [",round(CI.2[1],2),",",round(CI.2[2],2),"]"), aes(x=mean(boot.samples.2$x),y=12000), size=6) +
+  scale_fill_manual(values = c("black", "red"), name="") +
+  guides(fill=FALSE) +
+  coord_cartesian(xlim=c(-30,70), ylim=c(0,12000)) +
+  xlab("Difference in Average Allocation (%)") +
+  ylab("Count")
+```
+
+### Figure 3A-C
+Monthly (Yearly) (Inflated-Monthly) condition subjects' autocorrelation functions (ACF) of allocation choices
+
+```{r, echo=FALSE}
+monthly.data.lm <- monthly %>% select(ID,num_range("X",1:200)) %>%
+  gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2)))
+
+yearly.data.lm <- yearly %>% select(ID,num_range("X",1:200)) %>%
+  gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2))) %>%
+  filter(is.na(Choice)==FALSE) %>% mutate(Period = (Period %/% 10) + 1)
+
+infmonthly.data.lm <- infmonthly %>% select(ID,num_range("X",1:200)) %>%
+  gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2)))
+
+ts.monthly <- monthly.data.lm %>% spread(ID,Choice) %>% select(-Period)
+ts.yearly <- yearly.data.lm %>% spread(ID,Choice) %>% select(-Period)
+ts.infmonthly <- infmonthly.data.lm %>% spread(ID,Choice) %>% select(-Period)
+
+
+par(mar=c(4,4.5,3,1))
+par(mfrow=c(4,5))
+
+for (x in colnames(ts.monthly)){
+  acf(ts.monthly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
+  
+}
+
+par(mfrow=c(4,5))
+
+for (x in colnames(ts.yearly)){
+  acf(ts.yearly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
+  
+}
+
+par(mfrow=c(4,5))
+
+for (x in colnames(ts.infmonthly)){
+  acf(ts.infmonthly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
+  
+}
+
+par(mfrow=c(1,1))
+```
+
+### No figure/table
+Paired sample t-tests
+
+```{r, echo=FALSE}
+paired.data <- long.data.40 %>% group_by(ID) %>% summarise(avg_choice = mean(Choice,na.rm=TRUE)) %>% 
+  inner_join(select(wide.data,ID,Type,Final.Choice),by="ID")
+
+t.paired.test1 <- paired.data %>% filter(Type == 1)
+t.paired.test2 <- paired.data %>% filter(Type == 2)
+t.paired.test3 <- paired.data %>% filter(Type == 3)
+
+t.test(t.paired.test1$avg_choice,t.paired.test1$Final.Choice,paired=TRUE)
+t.test(t.paired.test2$avg_choice,t.paired.test2$Final.Choice,paired=TRUE)
+t.test(t.paired.test3$avg_choice,t.paired.test3$Final.Choice,paired=TRUE)
+```
+
+### Figure 4A-B
+Comparing allocations over time (monthly vs. yearly conditions) (vs. inflated-monthly - B)
+
+```{r, echo=FALSE}
+monthly.data <- monthly %>% select(num_range("X",1:200)) %>% summarise_each(funs(mean)) %>%
+  gather("Period","Avg_Choice",1:200) %>% mutate(Type = "Monthly")
+
+yearly.data <- yearly %>% select(num_range("X",1:200)) %>% summarise_each(funs(mean)) %>%
+  gather("Period","Avg_Choice",1:200) %>% filter(is.na(Avg_Choice)==FALSE) %>% mutate(Type = "Yearly")
+
+inf.monthly.data <-  infmonthly %>% select(num_range("X",1:200)) %>% summarise_each(funs(mean)) %>%
+  gather("Period","Avg_Choice",1:200) %>% mutate(Type = "Inflated Monthly")
+
+graph.data <- bind_rows(monthly.data,yearly.data) %>% bind_rows(inf.monthly.data)
+
+graph.data %>% filter(Type %in% c("Monthly","Yearly")) %>% 
+  ggplot(aes(Period, Avg_Choice, group=Type)) + 
+  geom_line(size=2, aes(col=Type)) + 
+  scale_x_discrete(breaks=NULL) + 
+  scale_y_continuous(breaks=seq(0,100,25)) +
+  scale_color_manual(values=c("Blue","Red"),name="Condition") +
+  ylab("Average Allocation to Bonds (%)") + xlab("Time (in Periods)") + 
+  geom_smooth(method="lm",size=2,color="black",fill=NA)
+  
+graph.data %>% filter(Type %in% c("Monthly","Inflated Monthly")) %>% 
+  ggplot(aes(Period, Avg_Choice, group=Type)) + 
+  geom_line(size=2, aes(col=Type)) + 
+  scale_x_discrete(breaks=NULL) + 
+  scale_y_continuous(breaks=seq(0,100,25)) +
+  scale_color_manual(values=c("Red","Blue"), name="Condition",breaks=c("Monthly","Inflated Monthly")) +
+  ylab("Average Allocation to Bonds (%)") + xlab("Time (in Periods)") + 
+  geom_smooth(method="lm",size=2,color="black",fill=NA)
+
+```
+
+### Table 3
+Regressions predicting allocation to Bond Fund (%) from trial number
+
+```{r, echo=FALSE}
+### Function to get cluster-robust standard errors
+### Source: http://www.ne.su.se/polopoly_fs/1.216115.1426234213!/menu/standard/file/clustering1.pdf
+clx <- function(fm, dfcw, cluster){
+  M <- length(unique(cluster))
+  N <- length(cluster)
+  dfc <- (M/(M-1))*((N-1)/(N-fm$rank))
+  u <- apply(estfun(fm),2,
+             function(x) tapply(x, cluster, sum))
+  vcovCL <- dfc*sandwich(fm, meat=crossprod(u)/N)*dfcw
+  + coeftest(fm, vcovCL) }
+
+fix.lm1 <- lm(Choice~Period + factor(ID) - 1,monthly.data.lm)
+
+
+cluster.lm1 <- lm(Choice~Period,monthly.data.lm)
+
+
+fix.lm2 <- lm(Choice~Period + factor(ID) - 1,yearly.data.lm)
+
+
+cluster.lm2 <- lm(Choice~Period,yearly.data.lm)
+
+fix.lm3 <- lm(Choice~Period + factor(ID) - 1,infmonthly.data.lm)
+
+
+cluster.lm3 <- lm(Choice~Period,infmonthly.data.lm)
+```
+
+Fixed-Effects (Monthly, Yearly, Inflated-Monthly)
+```{r, echo=FALSE}
+summary(fix.lm1)
+summary(fix.lm2)
+summary(fix.lm3)
+```
+
+Cluster-Robust SE's (Monthly, Yearly, Inflated-Monthly) 
+```{r, echo=FALSE}
+clx(cluster.lm1,1,monthly.data.lm$ID)
+clx(cluster.lm2,1,yearly.data.lm$ID)
+clx(cluster.lm3,1,infmonthly.data.lm$ID)
+```
+
+Fixed-Effects and Cluster-Robust SE's (Monthly, Yearly, Inflated-Monthly)
+```{r, echo=FALSE}
+clx(fix.lm1,1,monthly.data.lm$ID)
+clx(fix.lm2,1,yearly.data.lm$ID)
+clx(fix.lm3,1,infmonthly.data.lm$ID)
+```
+
+### Table 4.
+Regressions of final allocation to Bond Fund (%) on various measurements of finance knowledge and recollection of stock value loss.
+
+```{r, echo=FALSE}
+sum(wide.data$Q6 != "DK")
+sum(wide.data$Q7 != "DK")
+
+survey.lm1 <- wide.data %>% select(Final.Choice,Q6,Q7) %>%
+  mutate(tech.dummy=ifelse(Q6 == "DK",0,1),fin.dummy=ifelse(Q7 == "DK",0,1),Final.Choice=Final.Choice*100) 
+survey.lm2 <- survey.lm1 %>% filter(Q6 != "DK") %>% mutate(Q6=as.numeric(as.character(Q6))*100)
+survey.lm3 <- survey.lm1 %>% filter(Q7 != "DK") %>% mutate(Q7=as.numeric(as.character(Q7))*100)
+
+summary(lm(Final.Choice~tech.dummy + fin.dummy,survey.lm1))
+summary(lm(Final.Choice~Q6,survey.lm2))
+summary(lm(Final.Choice~Q7,survey.lm3))
+```
