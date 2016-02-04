@@ -236,7 +236,8 @@ yearly.data <- yearly %>% select(num_range("X",1:200)) %>% summarise_each(funs(m
 inf.monthly.data <-  infmonthly %>% select(num_range("X",1:200)) %>% summarise_each(funs(mean)) %>%
   gather("Period","Avg_Choice",1:200) %>% mutate(Type = "Inflated Monthly")
 
-graph.data <- bind_rows(monthly.data,yearly.data) %>% bind_rows(inf.monthly.data)
+graph.data <- bind_rows(monthly.data,yearly.data) %>% bind_rows(inf.monthly.data) %>%
+  mutate(Avg_Choice=Avg_Choice*100)
 
 graph.data %>% filter(Type %in% c("Monthly","Yearly")) %>% 
   ggplot(aes(Period, Avg_Choice, group=Type)) + 
