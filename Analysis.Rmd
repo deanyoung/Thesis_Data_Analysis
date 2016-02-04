@@ -6,8 +6,8 @@ output: html_document
 ---
 Please refer to thesis document for commentary.
 
-```{r, echo=FALSE, include=FALSE}
-### Initial setup
+### Initial data setup
+```{r, include=FALSE}
 library(dplyr)
 library(magrittr)
 library(tidyr)
@@ -18,8 +18,6 @@ library(plm)
 library(lme4)
 library(sandwich)
 library(lmtest)
-
-setwd("C:/Users/Dean/Google Drive/Thesis/Thesis UI and Data/Thesis_Data_Analysis")
 
 data <- read.csv('Exp_Data.csv',header=TRUE)
 survey <- read.csv('Exp_Survey.csv',header=TRUE)
@@ -44,7 +42,7 @@ Choices are for Bond allocation (note that the simulator produces choices as for
 ### Figure 1
 Distribution of final allocation choices for each condition
 
-```{r, echo=FALSE}
+```{r}
 hist.data <- wide.data %>% select(Type,Final.Choice) %>% mutate(Final.Choice = Final.Choice * 100) %>%
   mutate(Type = ifelse(Type == 1, "Monthly", ifelse(Type == 2, "Yearly","Inflated Monthly")))
 
@@ -57,23 +55,10 @@ ggplot(hist.data, aes(Final.Choice)) + geom_histogram(binwidth=10, fill="black",
   ylab("Number of Subjects") 
 ```
 
-### No figure/table
-Kolmogorov-Smirnov (KS) tests
-
-```{r, echo=FALSE}
-monthly <- wide.data %>% filter(Type==1) %>% mutate(Final.Choice=Final.Choice*100)
-yearly <- wide.data %>% filter(Type==2) %>% mutate(Final.Choice=Final.Choice*100)
-infmonthly <- wide.data %>% filter(Type==3) %>% mutate(Final.Choice=Final.Choice*100)
-
-lillie.test(monthly$Final.Choice)
-lillie.test(yearly$Final.Choice)
-lillie.test(infmonthly$Final.Choice)
-```
-
 ### Table 1
 Percent of portfolio allocated to the Bond Fund for final choice
 
-```{r, echo=FALSE}
+```{r}
 ste <- function(x) sqrt(var(x,na.rm=TRUE)/sum(!is.na(x))) #standard error computation
 
 summ.final <- wide.data %>% group_by(Type) %>% 
@@ -91,7 +76,7 @@ t.test(Final.Choice~Type,t.test3)
 ### Table 2
 Percent of portfolio allocated to the Bond Fund for final 40 periods
 
-```{r, echo=FALSE}
+```{r}
 summ.40 <- long.data.40 %>% group_by(Type) %>% 
   summarise(Avg = mean(Choice,na.rm=TRUE), sd = sd(Choice,na.rm=TRUE), ste = ste(Choice))
 
@@ -107,7 +92,7 @@ t.test.cluster(t.2.test3$Choice,t.2.test3$ID,t.2.test3$Type)
 ### No figure/table
 Controlling for survey results
 
-```{r, echo=FALSE}
+```{r}
 ctrl.t.test1 <- t.test1 %>% mutate(type.dummy = ifelse(Type==1,0,1), Final.Choice = Final.Choice*100)
 ctrl.t.test2 <- t.test2 %>% mutate(type.dummy = ifelse(Type==1,0,1), Final.Choice = Final.Choice*100)
 ctrl.t.test3 <- t.test3 %>% mutate(type.dummy = ifelse(Type==2,0,1), Final.Choice = Final.Choice*100)
@@ -121,7 +106,7 @@ coeftest(lm(Final.Choice~type.dummy+Q3+Q4+Q5,ctrl.t.test3), vcov=vcovHC)
 ### Figure 2A-B
 Bootstrapped differences in average allocation to the Bond Fund for the monthly and yearly conditions (monthly and inflated-monthly - B)
 
-```{r, echo=FALSE}
+```{r}
 bootstrap <- function(a,b){
   set.seed(76)
   boot.samples <- c(rep(NA,100000))
@@ -166,7 +151,7 @@ ggplot(aes(x, fill=CI), data=boot.samples.2) + geom_histogram(color="gray") +
 ### Figure 3A-C
 Monthly (Yearly) (Inflated-Monthly) condition subjects' autocorrelation functions (ACF) of allocation choices
 
-```{r, echo=FALSE}
+```{r}
 monthly.data.lm <- monthly %>% select(ID,num_range("X",1:200)) %>%
   gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2)))
 
@@ -210,7 +195,7 @@ par(mfrow=c(1,1))
 ### No figure/table
 Paired sample t-tests
 
-```{r, echo=FALSE}
+```{r}
 paired.data <- long.data.40 %>% group_by(ID) %>% summarise(avg_choice = mean(Choice,na.rm=TRUE)) %>% 
   inner_join(select(wide.data,ID,Type,Final.Choice),by="ID")
 
@@ -226,7 +211,7 @@ t.test(t.paired.test3$avg_choice,t.paired.test3$Final.Choice,paired=TRUE)
 ### Figure 4A-B
 Comparing allocations over time (monthly vs. yearly conditions) (vs. inflated-monthly - B)
 
-```{r, echo=FALSE}
+```{r}
 monthly.data <- monthly %>% select(num_range("X",1:200)) %>% summarise_each(funs(mean)) %>%
   gather("Period","Avg_Choice",1:200) %>% mutate(Type = "Monthly")
 
@@ -262,7 +247,7 @@ graph.data %>% filter(Type %in% c("Monthly","Inflated Monthly")) %>%
 ### Table 3
 Regressions predicting allocation to Bond Fund (%) from trial number
 
-```{r, echo=FALSE}
+```{r}
 ### Function to get cluster-robust standard errors
 ### Source: http://www.ne.su.se/polopoly_fs/1.216115.1426234213!/menu/standard/file/clustering1.pdf
 clx <- function(fm, dfcw, cluster){
@@ -292,21 +277,21 @@ cluster.lm3 <- lm(Choice~Period,infmonthly.data.lm)
 ```
 
 Fixed-Effects (Monthly, Yearly, Inflated-Monthly)
-```{r, echo=FALSE}
+```{r}
 summary(fix.lm1)
 summary(fix.lm2)
 summary(fix.lm3)
 ```
 
 Cluster-Robust SE's (Monthly, Yearly, Inflated-Monthly) 
-```{r, echo=FALSE}
+```{r}
 clx(cluster.lm1,1,monthly.data.lm$ID)
 clx(cluster.lm2,1,yearly.data.lm$ID)
 clx(cluster.lm3,1,infmonthly.data.lm$ID)
 ```
 
 Fixed-Effects and Cluster-Robust SE's (Monthly, Yearly, Inflated-Monthly)
-```{r, echo=FALSE}
+```{r}
 clx(fix.lm1,1,monthly.data.lm$ID)
 clx(fix.lm2,1,yearly.data.lm$ID)
 clx(fix.lm3,1,infmonthly.data.lm$ID)
@@ -315,7 +300,7 @@ clx(fix.lm3,1,infmonthly.data.lm$ID)
 ### Table 4.
 Regressions of final allocation to Bond Fund (%) on various measurements of finance knowledge and recollection of stock value loss.
 
-```{r, echo=FALSE}
+```{r}
 sum(wide.data$Q6 != "DK")
 sum(wide.data$Q7 != "DK")
 

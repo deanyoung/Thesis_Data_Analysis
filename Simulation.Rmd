@@ -1,0 +1,106 @@
+---
+title: "Myopic Loss Aversion in Investment Behavior - Appendix B Simulation"
+author: "Dean K. Young"
+date: "February 4, 2016"
+output: html_document
+---
+
+```{r, include=FALSE}
+library(psych)
+library(truncnorm)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(nortest)
+```
+
+### Simulation Code (Not set to run)
+This code creates the "dist_data.csv" file that contains the distributions of the simulated data.
+
+```{r, eval=FALSE}
+dist <- rep(NA,6*100000)
+n <- rep(NA,6*100000)
+base <- 0
+set.seed(76)
+
+ptm <- proc.time() # Start timer
+
+for (i in c(10,30,50,100,200,400)){ 
+  
+  for(j in 1:100000){
+    a <- rnorm(i,1.01,.0354)
+    b <- rtruncnorm(i,a=1,b=Inf,mean=1.0025,sd=.00177)
+    diff <- geometric.mean(a) - geometric.mean(b)
+    dist[j+(100000*base)] <- diff
+    n[j+(100000*base)] <- i
+  }
+  base <- base + 1
+}
+
+proc.time() - ptm # Check computing time
+
+
+data <- bind_cols(as.data.frame(dist),as.data.frame(n))
+write.csv(data, file="dist_data.csv",row.names=FALSE)
+```
+
+### Figure 5.
+Simulated distribution of difference in geometric mean return between the Stock Fund and the Bond Fund over various sample sizes
+
+```{r}
+data <- read.csv("dist_data.csv")
+
+data %<>% mutate(dist = dist* 100,
+                 perform = ifelse(dist < 0,"Underperform","Outperform"),
+                 perform_count = ifelse(dist < 0,1,0))
+
+data$n <- factor(data$n, levels=c(10,30,50,100,200,400), labels=c("n = 10", "n = 30", "n = 50", "n = 100", "n = 200", "n = 400"))
+
+data.cor <- ddply(.data=data, .(n), summarize, lab=paste("Prob. of Underperform: ", sum(perform_count)/1000, "%", sep=""))
+
+ggplot(data,aes(dist, fill=perform)) + geom_histogram(color="gray") +
+  xlab("Difference (%)") + ylab("Count") + 
+  scale_fill_manual(values = c("black", "red"), name="") +
+  facet_wrap(~ n) +
+  geom_text(data=data.cor, aes(x=.66, y=51000, label=lab), color="red", inherit.aes=FALSE, parse=FALSE)
+```
+
+### No figure/table
+Distribution means and KS-tests on distributions
+
+```{r}
+mean(data$dist)
+data %>% group_by(n) %>% summarise(mean(dist))
+
+ks.test <- data %>% filter(n == "n = 10") %>% select(dist)
+
+for (x in c("n = 30", "n = 50", "n = 100", "n = 200", "n = 400")){
+  ks.test <- bind_cols(ks.test, data %>% filter(n == x) %>% select(dist))
+  
+}
+
+colnames(ks.test) <- c(10,30,50,100,200,400)
+
+lillie.test(ks.test$"10")
+lillie.test(ks.test$"30")
+lillie.test(ks.test$"50")
+lillie.test(ks.test$"100")
+lillie.test(ks.test$"200")
+lillie.test(ks.test$"400")
+```
+
+### Figure 5 (Partial)
+Comparison of underperformance: Probs for assuming continuously compounded return
+
+```{r}
+mu.r <- .0075
+sigma2.a.b <- .0354^2 + .00177^2
+n.list <- c(10,30,50,100,200,400)
+table <- matrix(nrow=1,ncol=2)
+for (n in n.list){
+  prob <- pnorm(0,mean=mu.r,sd=sqrt(sigma2.a.b/n))
+  table <- rbind(table,c(n, paste(round(prob*100,3),"%")))
+  
+}
+```
