@@ -153,14 +153,14 @@ Monthly (Yearly) (Inflated-Monthly) condition subjects' autocorrelation function
 
 ```{r}
 monthly.data.lm <- monthly %>% select(ID,num_range("X",1:200)) %>%
-  gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2)))
+  gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2)), Choice=Choice*100)
 
 yearly.data.lm <- yearly %>% select(ID,num_range("X",1:200)) %>%
   gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2))) %>%
-  filter(is.na(Choice)==FALSE) %>% mutate(Period = (Period %/% 10) + 1)
+  filter(is.na(Choice)==FALSE) %>% mutate(Period = (Period %/% 10) + 1, Choice=Choice*100)
 
 infmonthly.data.lm <- infmonthly %>% select(ID,num_range("X",1:200)) %>%
-  gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2)))
+  gather("Period","Choice",2:201) %>% mutate(Period=as.numeric(substring(Period,2)), Choice=Choice*100)
 
 ts.monthly <- monthly.data.lm %>% spread(ID,Choice) %>% select(-Period)
 ts.yearly <- yearly.data.lm %>% spread(ID,Choice) %>% select(-Period)
