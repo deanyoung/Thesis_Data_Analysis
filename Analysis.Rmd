@@ -166,6 +166,20 @@ ts.monthly <- monthly.data.lm %>% spread(ID,Choice) %>% select(-Period)
 ts.yearly <- yearly.data.lm %>% spread(ID,Choice) %>% select(-Period)
 ts.infmonthly <- infmonthly.data.lm %>% spread(ID,Choice) %>% select(-Period)
 
+### Code to sort ACFs from highest (absolute) ACF for lag 1 to lowest ACF for lag 1
+for (x in colnames(ts.infmonthly)){
+  a <- c(x,acf(ts.infmonthly[[x]],plot=FALSE)$acf[2],3) %>% t() %>% as.data.frame() %>% 
+    rename(ID=V1,ACF_1=V2,Type=V3)
+  acf.rank %<>% bind_rows(a)
+  
+}
+
+acf.rank %<>% slice(2:n()) %>% mutate(ACF_1 = abs(as.numeric(ACF_1)))
+
+acf.rank.1 <- acf.rank %>% filter(Type==1) %>% arrange(desc(ACF_1))
+acf.rank.2 <- acf.rank %>% filter(Type==2) %>% arrange(desc(ACF_1))
+acf.rank.3 <- acf.rank %>% filter(Type==3) %>% arrange(desc(ACF_1))
+### End sorting code
 
 par(mar=c(4,4.5,3,1))
 par(mfrow=c(4,5))
