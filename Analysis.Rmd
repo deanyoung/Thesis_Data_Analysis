@@ -184,21 +184,21 @@ acf.rank.3 <- acf.rank %>% filter(Type==3) %>% arrange(desc(ACF_1))
 par(mar=c(4,4.5,3,1))
 par(mfrow=c(4,5))
 
-for (x in colnames(ts.monthly)){
+for (x in acf.rank.1){
   acf(ts.monthly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
   
 }
 
 par(mfrow=c(4,5))
 
-for (x in colnames(ts.yearly)){
+for (x in acf.rank.2){
   acf(ts.yearly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
   
 }
 
 par(mfrow=c(4,5))
 
-for (x in colnames(ts.infmonthly)){
+for (x in acf.rank.3){
   acf(ts.infmonthly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
   
 }
