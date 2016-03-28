@@ -34,12 +34,17 @@ long.data.40 <- wide.data %>% select(ID,Type,num_range("X",161:200)) %>% gather(
 
 remove(data,survey)
 
+monthly <- wide.data %>% filter(Type==1) %>% mutate(Final.Choice=Final.Choice*100)
+yearly <- wide.data %>% filter(Type==2) %>% mutate(Final.Choice=Final.Choice*100)
+infmonthly <- wide.data %>% filter(Type==3) %>% mutate(Final.Choice=Final.Choice*100)
+
 ```
 
 Type: 1 = Monthly, 2 = Yearly, 3 = Inflated Monthly  
 Choices are for Bond allocation (note that the simulator produces choices as for Stock allocation)
 
 ### Figure 1
+## Page 16
 Distribution of final allocation choices for each condition
 
 ```{r}
@@ -56,6 +61,7 @@ ggplot(hist.data, aes(Final.Choice)) + geom_histogram(binwidth=10, fill="black",
 ```
 
 ### Table 1
+## Page 17
 Percent of portfolio allocated to the Bond Fund for final choice
 
 ```{r}
@@ -73,7 +79,8 @@ t.test(Final.Choice~Type,t.test2)
 t.test(Final.Choice~Type,t.test3)
 ```
 
-### Table 2
+### Table 2A-B
+## Page 17
 Percent of portfolio allocated to the Bond Fund for final 40 periods
 
 ```{r}
@@ -90,6 +97,7 @@ t.test.cluster(t.2.test3$Choice,t.2.test3$ID,t.2.test3$Type)
 ```
 
 ### No figure/table
+## Page 16-17
 Controlling for survey results
 
 ```{r}
@@ -104,9 +112,10 @@ coeftest(lm(Final.Choice~type.dummy+Q3+Q4+Q5,ctrl.t.test3), vcov=vcovHC)
 ```
 
 ### Figure 2A-B
+## Page 18-19
 Bootstrapped differences in average allocation to the Bond Fund for the monthly and yearly conditions (monthly and inflated-monthly - B)
 
-```{r}
+```{r, cache=TRUE}
 bootstrap <- function(a,b){
   set.seed(76)
   boot.samples <- c(rep(NA,100000))
@@ -149,6 +158,7 @@ ggplot(aes(x, fill=CI), data=boot.samples.2) + geom_histogram(color="gray") +
 ```
 
 ### Figure 3A-C
+## Page 21-22
 Monthly (Yearly) (Inflated-Monthly) condition subjects' autocorrelation functions (ACF) of allocation choices
 
 ```{r}
@@ -167,6 +177,23 @@ ts.yearly <- yearly.data.lm %>% spread(ID,Choice) %>% select(-Period)
 ts.infmonthly <- infmonthly.data.lm %>% spread(ID,Choice) %>% select(-Period)
 
 ### Code to sort ACFs from highest (absolute) ACF for lag 1 to lowest ACF for lag 1
+acf.rank <- as.matrix(t(c(NA,NA,NA)),nrow=1,ncol=3) %>% as.data.frame() %>% 
+  rename(ID=V1,ACF_1=V2,Type=V3) 
+
+for (x in colnames(ts.monthly)){
+  a <- c(x,acf(ts.monthly[[x]],plot=FALSE)$acf[2],1) %>% t() %>% as.data.frame() %>% 
+    rename(ID=V1,ACF_1=V2,Type=V3)
+  acf.rank %<>% bind_rows(a)
+  
+}
+
+for (x in colnames(ts.yearly)){
+  a <- c(x,acf(ts.yearly[[x]],plot=FALSE)$acf[2],2) %>% t() %>% as.data.frame() %>% 
+    rename(ID=V1,ACF_1=V2,Type=V3)
+  acf.rank %<>% bind_rows(a)
+  
+}
+
 for (x in colnames(ts.infmonthly)){
   a <- c(x,acf(ts.infmonthly[[x]],plot=FALSE)$acf[2],3) %>% t() %>% as.data.frame() %>% 
     rename(ID=V1,ACF_1=V2,Type=V3)
@@ -184,21 +211,21 @@ acf.rank.3 <- acf.rank %>% filter(Type==3) %>% arrange(desc(ACF_1))
 par(mar=c(4,4.5,3,1))
 par(mfrow=c(4,5))
 
-for (x in acf.rank.1){
+for (x in acf.rank.1$ID) {
   acf(ts.monthly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
   
 }
 
 par(mfrow=c(4,5))
 
-for (x in acf.rank.2){
+for (x in acf.rank.2$ID){
   acf(ts.yearly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
   
 }
 
 par(mfrow=c(4,5))
 
-for (x in acf.rank.3){
+for (x in acf.rank.3$ID){
   acf(ts.infmonthly[[x]],lag.max=10, plot=FALSE) %>% plot(main = x)
   
 }
@@ -207,6 +234,7 @@ par(mfrow=c(1,1))
 ```
 
 ### No figure/table
+## Page 20
 Paired sample t-tests
 
 ```{r}
@@ -223,6 +251,7 @@ t.test(t.paired.test3$avg_choice,t.paired.test3$Final.Choice,paired=TRUE)
 ```
 
 ### Figure 4A-B
+## Page 24
 Comparing allocations over time (monthly vs. yearly conditions) (vs. inflated-monthly - B)
 
 ```{r}
@@ -259,6 +288,7 @@ graph.data %>% filter(Type %in% c("Monthly","Inflated Monthly")) %>%
 ```
 
 ### Table 3
+## Page 25
 Regressions predicting allocation to Bond Fund (%) from trial number
 
 ```{r}
@@ -312,6 +342,7 @@ clx(fix.lm3,1,infmonthly.data.lm$ID)
 ```
 
 ### Table 4.
+## Page 26
 Regressions of final allocation to Bond Fund (%) on various measurements of finance knowledge and recollection of stock value loss.
 
 ```{r}
